@@ -58,14 +58,32 @@ def make_move(request):
     """Validate and execute a chess move via the C++ engine."""
     try:
         data = json.loads(request.body)
-        from_row = int(data['from_row'])
-        from_col = int(data['from_col'])
-        to_row = int(data['to_row'])
-        to_col = int(data['to_col'])
+        coords = ['from_row', 'from_col', 'to_row', 'to_col']
+        for coord in coords:
+            if coord not in data:
+                return JsonResponse(
+                    {"error": "Invalid board coordinates"},
+                    status=400,
+                )
+            val = data[coord]
+            if not isinstance(val, int) or isinstance(val, bool):
+                return JsonResponse(
+                    {"error": "Invalid board coordinates"},
+                    status=400,
+                )
+            if not (0 <= val <= 7):
+                return JsonResponse(
+                    {"error": "Invalid board coordinates"},
+                    status=400,
+                )
+        from_row = data['from_row']
+        from_col = data['from_col']
+        to_row = data['to_row']
+        to_col = data['to_col']
         promotion_piece = data.get('promotion_piece', None)
     except (json.JSONDecodeError, KeyError, ValueError, TypeError):
         return JsonResponse(
-            {'valid': False, 'message': 'Invalid request data.'},
+            {"error": "Invalid board coordinates"},
             status=400,
         )
 
@@ -128,17 +146,37 @@ def valid_moves(request):
 @require_POST
 def new_game(request):
     """Reset the game to the initial position with selected mode."""
-    data = json.loads(request.body or '{}')
+    try:
+        data = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'valid': False, 'message': 'Invalid request data.'}, status=400)
+    
     mode = data.get('mode', 'pvp')
     difficulty = data.get('difficulty', 'medium')
     fen = data.get('fen')
     time_limit_raw = data.get('time_limit', 600)
+    increment_raw = data.get('increment', 0)
 
-    try:
-        time_limit = int(time_limit_raw)
-        time_limit = max(60, min(18000, time_limit))
-    except (ValueError, TypeError):
-        time_limit = 600
+    if isinstance(time_limit_raw, str) and '|' in time_limit_raw:
+        try:
+            parts = time_limit_raw.split('|')
+            time_limit = int(parts[0]) * 60
+            increment = int(parts[1])
+        except (ValueError, IndexError, TypeError):
+            time_limit = 600
+            increment = 0
+    else:
+        try:
+            time_limit = int(time_limit_raw)
+            time_limit = max(60, min(18000, time_limit))
+        except (ValueError, TypeError):
+            time_limit = 600
+
+        try:
+            increment = int(increment_raw)
+            increment = max(0, min(180, increment))
+        except (ValueError, TypeError):
+            increment = 0
 
     if mode not in ('pvp', 'ai'):
         mode = 'pvp'
@@ -166,14 +204,14 @@ def new_game(request):
     fen = fen.strip() if isinstance(fen, str) else None
     if fen:
         try:
-            game = ChessGame.from_fen(fen, time_limit=time_limit)
+            game = ChessGame.from_fen(fen, time_limit=time_limit, increment=increment)
         except ValueError as exc:
             return JsonResponse(
                 {'valid': False, 'message': f'Invalid FEN: {exc}'},
                 status=400,
             )
     else:
-        game = ChessGame(time_limit=time_limit)
+        game = ChessGame(time_limit=time_limit, increment=increment)
     game.mode = mode
     game.player_color = player_color
     game.paused = False
@@ -306,7 +344,11 @@ def set_pause(request):
     if not game_data:
         return JsonResponse({'paused': False})
 
-    data = json.loads(request.body or '{}')
+    try:
+        data = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'valid': False, 'message': 'Invalid request data.'}, status=400)
+
     pause = data.get('pause', True)
 
     game = ChessGame.from_dict(game_data)
@@ -416,16 +458,30 @@ def offer_draw(request):
     """Handle draw offers and agreements."""
     game_data = request.session.get('game')
     if not game_data:
-        err_msg = 'No active game.'
         return JsonResponse(
-            {'success': False, 'message': err_msg}, status=400
+            {'success': False, 'message': 'No active game.'}, status=400
         )
 
-    data = json.loads(request.body or '{}')
-    action = data.get('action')  # 'offer' or 'accept'
+    try:
+        data = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {'valid': False, 'message': 'Invalid request data.'}, status=400
+        )
+
+    action = data.get('action')
+
+    if action not in ('offer', 'accept', 'decline'):
+        return JsonResponse(
+            {'success': False, 'message': 'Invalid action.'}, status=400
+        )
 
     if action == 'accept':
         game = ChessGame.from_dict(game_data)
+        if game.game_status != 'active':
+            return JsonResponse(
+                {'success': False, 'message': 'Game is not active.'}, status=400
+            )
         game.game_status = 'draw'
         game.draw_reason = 'agreement'
         request.session['game'] = game.to_dict()
@@ -438,7 +494,6 @@ def offer_draw(request):
         })
 
     return JsonResponse({'success': True})
-
 
 @require_POST
 def resign_game(request):
@@ -763,16 +818,33 @@ class CustomPasswordResetView(PasswordResetView):
     def post(self, request, *args, **kwargs):
 
         email = request.POST.get('email', '').strip().lower()
+        users = User.objects.filter(email=email)
 
+        if users.count() > 1 and not request.POST.get(
+            'selected_username'
+        ):
+
+            usernames = users.values_list(
+                'username',
+                flat=True
+            )
+
+            return render(
+                request,
+                'game/password_reset.html',
+                {
+                    'form': self.form_class,
+                    'usernames': usernames,
+                    'email': email
+                }
+            )
         if not email:
-
             messages.error(
                 request,
                 'Please enter a valid email address.'
             )
 
             return redirect('password_reset')
-
         cache_key = (f"password_reset_cooldown_{email}")
 
         if cache.get(cache_key):
@@ -784,6 +856,30 @@ class CustomPasswordResetView(PasswordResetView):
 
             return redirect('password_reset')
         cache.set(cache_key, True, timeout=60)
+        selected_username = request.POST.get(
+            'selected_username'
+        )
+
+        if selected_username:
+
+            selected_user = User.objects.filter(
+                username=selected_username,
+                email=email
+            ).first()
+
+            from django.contrib.auth.forms import (
+                PasswordResetForm
+            )
+
+            class SingleUserPasswordResetForm(
+                PasswordResetForm
+            ):
+
+                def get_users(self, email):
+
+                    return [selected_user]
+
+            self.form_class = (SingleUserPasswordResetForm)
         return super().post(
             request,
             *args,
@@ -903,3 +999,20 @@ def terms_view(request):
 def contact_view(request):
     """Directly serve the static contact page template instance."""
     return render(request, 'game/contact.html')
+
+def password_reset_account_selection(request):
+
+    email = request.GET.get('email')
+
+    users = User.objects.filter(email=email)
+
+    return render(
+        request,
+        'game/password_reset_account_selection.html',
+        {
+            'users': users,
+            'email': email
+        }
+    )
+
+    

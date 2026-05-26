@@ -156,7 +156,7 @@ body {
         minmax(0, var(--panel-width))
         minmax(0, var(--panel-width));
     gap: var(--layout-gap);
-    padding: var(--layout-padding-y) var(--layout-padding-x) 30px;
+    padding: var(--layout-padding-y) var(--layout-padding-x) 60px;
     align-items: start;
     justify-content: center;
     width: 100%;
@@ -896,7 +896,7 @@ body {
         width: 100%;
         max-width: 100%;
         gap: 16px;
-        padding: 10px 6px 20px;
+        padding: 10px 6px 60px;
         display: flex;
         flex-direction: column;
         overflow-x: hidden;
@@ -1508,12 +1508,8 @@ body {
 }
 
 /* ================= PAUSE STATE ================= */
-.chessboard.paused {
-    pointer-events: none;
-}
-
-/* Blur squares only — not ::after, so the pause label stays sharp */
 .chessboard.paused .square {
+    pointer-events: none;
     filter: blur(15px);
 }
 
@@ -1672,4 +1668,96 @@ body {
 
 .offline {
     background-color: #d50000 !important;
+}
+
+/* ============================================================
+   Blindfold Mode & Flash Animation
+   ============================================================ */
+body.blindfold-mode .chessboard .piece {
+    opacity: 0 !important;
+}
+body.blindfold-mode .move-dot,
+body.blindfold-mode .capture-ring {
+    display: none !important;
+}
+
+@keyframes flash-error {
+    0% { border-color: #ff6b6b; box-shadow: 0 0 20px rgba(255, 107, 107, 0.8); }
+    50% { border-color: #3d3222; box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6); }
+    100% { border-color: #ff6b6b; box-shadow: 0 0 20px rgba(255, 107, 107, 0.8); }
+}
+
+.flash-error {
+    animation: flash-error 0.5s ease-in-out 4; /* 4 * 0.5s = 2 seconds total */
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .flash-error {
+        animation: none;
+        border-color: #ff6b6b;
+        box-shadow: 0 0 20px rgba(255, 107, 107, 0.8);
+    }
+}
+
+/* ============================================================
+   Time Control Custom Picker & Tabs
+   ============================================================ */
+.time-control-selector-container {
+    margin-top: 5px;
+    width: 100%;
+}
+
+.time-control-trigger:hover {
+    border-color: #f0c040 !important;
+    box-shadow: 0 0 10px rgba(240, 192, 64, 0.15);
+}
+
+.time-control-trigger:focus {
+    outline: none;
+    border-color: #f0c040 !important;
+    box-shadow: 0 0 12px rgba(240, 192, 64, 0.3);
+}
+
+.tc-tab-btn:hover {
+    color: #fff !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.tc-tab-btn.active {
+    color: #f0c040 !important;
+    background-color: rgba(240, 192, 64, 0.1) !important;
+    border-bottom: 2px solid #f0c040 !important;
+}
+
+.tc-preset-btn:hover {
+    border-color: rgba(240, 192, 64, 0.5) !important;
+    background-color: rgba(240, 192, 64, 0.05) !important;
+    transform: translateY(-1px);
+}
+
+.tc-preset-btn.active {
+    border-color: #f0c040 !important;
+    background: linear-gradient(135deg, rgba(240, 192, 64, 0.2), rgba(212, 160, 32, 0.1)) !important;
+    color: #f0c040 !important;
+    font-weight: 600;
+    box-shadow: 0 0 12px rgba(240, 192, 64, 0.2);
+}
+
+.tc-preset-btn:active {
+    transform: translateY(0);
+}
+
+.tc-custom-inputs input:focus {
+    border-color: #f0c040 !important;
+    outline: none;
+    box-shadow: 0 0 8px rgba(240, 192, 64, 0.2);
+}
+
+/* Custom scrollbar for tabs */
+.tc-tabs::-webkit-scrollbar {
+    height: 3px;
+}
+.tc-tabs::-webkit-scrollbar-thumb {
+    background: #252545;
+    border-radius: 1px;
 }
