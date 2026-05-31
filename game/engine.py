@@ -297,6 +297,20 @@ DP cache is intentionally excluded to save cookie space."""
         """Return the first available engine entrypoint for this platform."""
         for path in cls.ENGINE_CANDIDATES:
             if os.path.exists(path):
+                # Serverless workaround: copy the Linux C++ binary to the writable /tmp directory
+                # and restore the execute (+x) permission.
+                if os.name != 'nt' and not path.endswith('.py'):
+                    tmp_path = '/tmp/checkora_main'
+                    try:
+                        import shutil
+                        # Only copy if it doesn't exist or if the source is newer
+                        if not os.path.exists(tmp_path) or os.path.getmtime(path) > os.path.getmtime(tmp_path):
+                            shutil.copy(path, tmp_path)
+                            os.chmod(tmp_path, 0o755)
+                        return tmp_path
+                    except Exception:
+                        # If copying or chmod fails, fall back to the next candidate (e.g. main.py)
+                        continue
                 return path
         return None
 

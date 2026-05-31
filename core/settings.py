@@ -144,7 +144,7 @@ STATICFILES_DIRS = [
 ]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 
 # Session Cookie Security
 SESSION_COOKIE_HTTPONLY = True

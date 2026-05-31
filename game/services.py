@@ -1,4 +1,5 @@
 import time
+from django.conf import settings
 from django.contrib.sessions.models import Session
 from django.db import transaction
 from django.contrib.auth import get_user_model
@@ -13,6 +14,9 @@ def cleanup_stale_games():
     Rule A (Low Engagement): < 5 moves -> hard deletion (remove game from session).
     Rule B (High Engagement): >= 5 moves -> auto-resign inactive player.
     """
+    if settings.SESSION_ENGINE != 'django.contrib.sessions.backends.db':
+        return 0, 0
+
     # 48 hours in seconds
     stale_threshold = time.time() - (48 * 3600)
     
