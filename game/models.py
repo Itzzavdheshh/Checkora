@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.db.models import Q
 
 
 class GameResult(models.Model):
@@ -44,7 +45,8 @@ class GameResult(models.Model):
 class PuzzleStats(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
+        related_name="puzzle_stats"
     )
 
     puzzles_solved = models.PositiveIntegerField(
@@ -58,6 +60,15 @@ class PuzzleStats(models.Model):
     )
     daily_completions = models.PositiveIntegerField(default=0)
     
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(best_streak__gte=models.F("current_streak")),
+                name="best_streak_gte_current_streak",
+            ),
+        ]
+
     def __str__(self):
         return f"{self.user.username} Puzzle Stats"
+    
     
